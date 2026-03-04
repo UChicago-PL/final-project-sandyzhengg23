@@ -1,0 +1,38 @@
+Progress Report – Milestone
+
+I initialized a Cabal project and set up a modular structure for the final project. 
+I defined an `Event` algebraic data type to represent structured calendar data (title, date, time, and optional location). 
+This allows the program to represent calendar events in a typed way instead of storing everything as raw strings.
+
+I built an initial working CLI program that reads a line of input, parses it, and prints a structured Event. 
+The parsing logic is implemented in a separate module.
+
+The parser currently supports the following features:
+
+- Extracts an optional @ location suffix and stores it as a Maybe value
+- Detects the word tomorrow as a relative date expression
+- Parses basic time expressions such as 8am and time ranges like 6-7 pm
+- Removes parsed tokens (date, time, location) from the title so the title remains clean
+- Falls back to UnknownDate and UnknownTime when components are missing
+
+
+- Main.hs – Handles user interaction and connects the parsing logic to the CLI
+- Event.hs – Defines the core Event data type and structured calendar representation
+- DateExpr.hs – Represents relative or abstract date expressions (e.g., Tomorrow)
+- TimeRange.hs – Defines a structured representation of event times
+- Parse.hs – Contains the parsing logic that transforms raw text input into an Event
+- ICS.hs (planned) – Will handle conversion from Event into .ics calendar format
+
+Examples:
+
+Input: Dental appointment tomorrow 8am at Downtown
+Output:  Event {eventTitle = "Dental appointment", eventDate = Tomorrow, eventTime = SingleTime "8am", eventLocation = Just "Downtown"}
+
+
+Input: Dinner tomorrow 6-7 pm
+Output: Event {eventTitle = "Dinner", eventDate = Tomorrow, eventTime = TimeSpan "6pm" "7pm", eventLocation = Nothing}
+
+
+Input: Gym 6-7pm @ Ratner
+Output: Event {eventTitle = "Gym", eventDate = UnknownDate, eventTime = SingleTime "6-7pm", eventLocation = Just "Ratner"}
+
