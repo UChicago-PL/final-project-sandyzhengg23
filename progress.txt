@@ -1,7 +1,7 @@
 Progress Report – Milestone
 
 I initialized a Cabal project and set up a modular structure for the final project. 
-I defined an `Event` algebraic data type to represent structured calendar data (title, date, time, and optional location). 
+I defined an Event algebraic data type to represent structured calendar data (title, date, time, and optional location). 
 This allows the program to represent calendar events in a typed way instead of storing everything as raw strings.
 
 I built an initial working CLI program that reads a line of input, parses it, and prints a structured Event. 

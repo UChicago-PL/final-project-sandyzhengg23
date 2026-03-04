@@ -1,0 +1,1 @@
+This project is a Haskell command-line program that parses natural language event descriptions into structured calendar events. The program extracts information such as title, date, time, and location, and is designed to later export events in .ics format for calendar applications.
