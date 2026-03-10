@@ -1,9 +1,16 @@
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use isAsciiUpper" #-}
+{-# HLINT ignore "Replace case with maybe" #-}
 module Parse (parseEvent) where
 
-import DateExpr
-import Event
+import DateExpr ( DateExpr(..) )
+import Event ( Event(..) )
 import Recurrence
-import TimeRange
+    ( Recurrence(..),
+      Weekday(Sunday, Monday, Tuesday, Wednesday, Thursday, Friday,
+              Saturday) )
+import TimeRange ( TimeRange(..) )
 
 parseEvent :: String -> Event
 parseEvent input =
@@ -177,19 +184,18 @@ splitOnDash t =
     _          -> (t, t)
 
 splitRangeWithMer :: String -> Maybe (String, String, String)
-splitRangeWithMer t =
-  if endsWith "am" t
-    then mk "am"
-    else if endsWith "pm" t
-      then mk "pm"
-      else Nothing
+splitRangeWithMer t
+  | endsWith "am" t = mk "am"
+  | endsWith "pm" t = mk "pm"
+  | otherwise = Nothing
   where
-    mk mer =
-      let rangePart = take (length t - 2) t
-      in if isRange rangePart
-           then let (a, b) = splitOnDash rangePart
-                in Just (a, b, mer)
-           else Nothing
+      mk mer
+        = let rangePart = take (length t - 2) t
+          in
+            if isRange rangePart then
+                let (a, b) = splitOnDash rangePart in Just (a, b, mer)
+            else
+                Nothing
 
 isSingleTime :: String -> Bool
 isSingleTime t =
