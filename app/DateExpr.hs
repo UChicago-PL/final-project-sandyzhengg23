@@ -1,7 +1,8 @@
 module DateExpr where
 
 data DateExpr
-  = Tomorrow
+  = Today
+  | Tomorrow
   | OnDate String
   | UnknownDate
   deriving (Eq, Show)

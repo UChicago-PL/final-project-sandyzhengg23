@@ -1,0 +1,94 @@
+Sandy Zheng
+Functional Programming Final Project
+Natural Language Task to Calendar Parser
+
+Project Overview
+
+This project is a Haskell command-line program that parses semi-structured 
+natural language event descriptions into structured calendar events. 
+The goal is to let a user enter event descriptions such as “gym tomorrow 7am” 
+or “every monday team meeting 3pm at Harper Cafe” and automatically extract 
+event information including title, date, time, location, and recurrence.
+
+After parsing the input, the program exports the events into an .ics 
+calendar file in iCalendar format so that the events can be imported into 
+calendar applications.
+
+Code Organization
+
+The code is organized into several modules:
+
+- Main.hs
+Handles the overall program flow. It reads event descriptions from the user, 
+parses them into Event values, prints the parsed results, and writes the 
+final calendar.ics file.
+
+- Parse.hs
+Contains the parsing pipeline. It extracts recurrence, location, date, 
+and time from the input text, and uses the remaining words as the event title.
+
+- Event.hs
+Defines the main Event data type that stores the structured event information.
+
+- DateExpr.hs
+Defines date expressions such as Today, Tomorrow, explicit dates, and UnknownDate.
+
+- TimeRange.hs
+Defines time representations such as SingleTime, TimeSpan, and UnknownTime.
+
+- Recurrence.hs
+Defines recurrence values such as EveryDay, EveryWeekday Monday, and NoRecurrence.
+
+- ICS.hs
+Converts parsed Event values into iCalendar text and generates the final .ics file.
+
+How to Run / Interact With the Project
+The project is run from the command line using:
+
+cabal run
+
+The program prompts the user to enter events one per line. 
+A blank line ends input. After that, the program prints the 
+parsed events and generates a file named calendar.ics.
+
+Example inputs:
+
+Dental appointment tomorrow 8am at Downtown
+Project presentation 2026-04-10 11am at Regenstein Library
+every monday team meeting 3pm at Harper Cafe
+every day workout 7am
+Dinner tomorrow 6-7 pm
+
+Functional Programming Aspects
+This project uses algebraic data types to represent structured information 
+such as dates, times, recurrence, and events. The parsing logic is implemented 
+as a sequence of pure transformation functions that extract specific pieces of 
+information from the input text. Breaking the parser into smaller specialized 
+passes made the program easier to organize and extend.
+
+Implemented Features
+
+- Parsing of event titles
+- Parsing of locations using “at ...” or “@ ...”
+- Parsing of relative dates such as “today” and “tomorrow”
+- Parsing of explicit ISO-style dates such as 2026-04-10
+- Parsing of single times such as 8am or 7pm
+- Parsing of simple time ranges such as 6-7 pm
+- Parsing of simple recurrence expressions such as “every day” and “every monday”
+- Export of parsed events into an .ics calendar file
+
+Limitations
+
+The parser supports a limited set of semi-structured patterns and 
+does not support unrestricted natural language. Timezone handling is simplified. 
+More advanced recurrence patterns, date expressions, and conflict detection 
+are not fully implemented.
+
+Future Work
+
+Possible future extensions include:
+- richer natural language date parsing
+- more advanced recurrence rules
+- conflict detection between events
+- direct integration with calendar APIs
+- a more interactive text-based interface

@@ -1,19 +1,22 @@
 module Parse (parseEvent) where
 
-import Event
 import DateExpr
+import Event
+import Recurrence
 import TimeRange
 
 parseEvent :: String -> Event
 parseEvent input =
   let (noLoc, locPart) = extractLocation input
-      (noDate, datePart) = extractTomorrow (trim noLoc)
+      (noRec, recPart) = extractRecurrence (trim noLoc)
+      (noDate, datePart) = extractDateExpr (trim noRec)
       (titlePart, timePart) = extractTime (trim noDate)
   in Event
       { eventTitle = trim titlePart
       , eventDate = datePart
       , eventTime = timePart
       , eventLocation = locPart
+      , eventRecurrence = recPart
       }
 
 trim :: String -> String
@@ -22,16 +25,87 @@ trim = dropWhileEnd isSpace . dropWhile isSpace
     isSpace c = c == ' ' || c == '\t'
     dropWhileEnd p = reverse . dropWhile p . reverse
 
-extractTomorrow :: String -> (String, DateExpr)
-extractTomorrow s =
-  if "tomorrow" `elem` words s
-    then (unwords (filter (/= "tomorrow") (words s)), Tomorrow)
-    else (s, UnknownDate)
+extractRecurrence :: String -> (String, Recurrence)
+extractRecurrence s =
+  case map lowerString (words s) of
+    ("every":"day":rest) ->
+      (removeLeadingEveryThing s, EveryDay)
+    ("every":"monday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Monday)
+    ("every":"tuesday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Tuesday)
+    ("every":"wednesday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Wednesday)
+    ("every":"thursday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Thursday)
+    ("every":"friday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Friday)
+    ("every":"saturday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Saturday)
+    ("every":"sunday":rest) ->
+      (removeLeadingEveryThing s, EveryWeekday Sunday)
+    _ ->
+      (s, NoRecurrence)
+
+removeLeadingEveryThing :: String -> String
+removeLeadingEveryThing s =
+  case words s of
+    (_ : _ : rest) -> unwords rest
+    _              -> s
+
+lowerString :: String -> String
+lowerString = map toLowerSimple
+
+toLowerSimple :: Char -> Char
+toLowerSimple c
+  | c >= 'A' && c <= 'Z' = toEnum (fromEnum c + 32)
+  | otherwise = c
+
+extractDateExpr :: String -> (String, DateExpr)
+extractDateExpr s
+  | "tomorrow" `elem` ws = (removeWord "tomorrow" ws, Tomorrow)
+  | "today" `elem` ws    = (removeWord "today" ws, Today)
+  | otherwise =
+      case extractExplicitDate ws of
+        Just (remainingWords, d) -> (unwords remainingWords, OnDate d)
+        Nothing                  -> (s, UnknownDate)
+  where
+    ws = words s
+
+removeWord :: String -> [String] -> String
+removeWord w = unwords . filter (/= w)
+
+extractExplicitDate :: [String] -> Maybe ([String], String)
+extractExplicitDate [] = Nothing
+extractExplicitDate (x:xs)
+  | looksLikeISODate x = Just (xs, x)
+  | otherwise =
+      case extractExplicitDate xs of
+        Just (rest, d) -> Just (x:rest, d)
+        Nothing        -> Nothing
+
+looksLikeISODate :: String -> Bool
+looksLikeISODate s =
+  case splitOnDash3 s of
+    Just (y, m, d) ->
+      length y == 4 && length m == 2 && length d == 2
+      && allDigits y && allDigits m && allDigits d
+    Nothing -> False
+
+splitOnDash3 :: String -> Maybe (String, String, String)
+splitOnDash3 s =
+  case break (== '-') s of
+    (a, '-':rest1) ->
+      case break (== '-') rest1 of
+        (b, '-':rest2) -> Just (a, b, rest2)
+        _              -> Nothing
+    _ -> Nothing
 
 extractLocation :: String -> (String, Maybe String)
 extractLocation s =
   case break (== '@') s of
-    (before, '@':after) -> (trim before, Just (trim after))
+    (before, '@' : after) ->
+      (trim before, Just (trim after))
     _ ->
       case breakOnWord "at" (words s) of
         Just (beforeWords, afterWords) ->
@@ -43,97 +117,100 @@ breakOnWord :: String -> [String] -> Maybe ([String], [String])
 breakOnWord _ [] = Nothing
 breakOnWord w xs =
   case break (== w) xs of
-    (_, []) -> Nothing
-    (a, _:b) -> Just (a, b)
-
+    (_, [])   -> Nothing
+    (a, _:b)  -> Just (a, b)
 
 extractTime :: String -> (String, TimeRange)
 extractTime s =
-  case findTimeSpan (words s) of
-    Just (before, startT, endT, after) ->
-      (unwords (before ++ after), TimeSpan startT endT)
-    Nothing ->
-      case findSingleTime (words s) of
-        Just (before, t, after) ->
-          (unwords (before ++ after), SingleTime t)
+  let ws = words s
+  in case pickSpan ws of
+      Just (ws', startT, endT) -> (unwords ws', TimeSpan startT endT)
+      Nothing ->
+        case pickSingle ws of
+          Just (ws', t) -> (unwords ws', SingleTime t)
+          Nothing       -> (s, UnknownTime)
+
+pickSpan :: [String] -> Maybe ([String], String, String)
+pickSpan [] = Nothing
+pickSpan [x] =
+  case splitRangeWithMer x of
+    Just (a, b, mer) -> Just ([], a ++ mer, b ++ mer)
+    Nothing          -> Nothing
+pickSpan (x:y:rest)
+  | isRange x && isMer y =
+      let (a, b) = splitOnDash x
+      in Just (rest, a ++ y, b ++ y)
+  | otherwise =
+      case splitRangeWithMer x of
+        Just (a, b, mer) -> Just (y:rest, a ++ mer, b ++ mer)
         Nothing ->
-          (s, UnknownTime)
+          case pickSpan (y:rest) of
+            Just (ws', s1, s2) -> Just (x:ws', s1, s2)
+            Nothing            -> Nothing
 
-findTimeSpan :: [String] -> Maybe ([String], String, String, [String])
-findTimeSpan ws =
-  case ws of
-    [] -> Nothing
-    (x:y:rest)
-      | looksLikeRange x && (y == "am" || y == "pm") ->
-          let (startRaw, endRaw) = splitRange x
-              startT = startRaw ++ y
-              endT   = endRaw ++ y
-          in Just ([], startT, endT, rest)
-      | looksLikeRangeWithMeridiem x ->
-          let (rangePart, mer) = splitMeridiem x
-              (startRaw, endRaw) = splitRange rangePart
-              startT = startRaw ++ mer
-              endT   = endRaw ++ mer
-          in Just ([], startT, endT, y:rest)
-      | otherwise ->
-          prepend x (findTimeSpan (y:rest))
-    (x:rest) ->
-      prepend x (findTimeSpan rest)
-  where
-    prepend a mb =
-      case mb of
-        Nothing -> Nothing
-        Just (before, s1, s2, after) -> Just (a:before, s1, s2, after)
+pickSingle :: [String] -> Maybe ([String], String)
+pickSingle [] = Nothing
+pickSingle [x]
+  | isSingleTime x = Just ([], x)
+  | otherwise      = Nothing
+pickSingle (x:y:rest)
+  | allDigits x && isMer y = Just (rest, x ++ y)
+  | isSingleTime x         = Just (y:rest, x)
+  | otherwise =
+      case pickSingle (y:rest) of
+        Just (ws', t) -> Just (x:ws', t)
+        Nothing       -> Nothing
 
-findSingleTime :: [String] -> Maybe ([String], String, [String])
-findSingleTime ws =
-  case ws of
-    [] -> Nothing
-    (x:rest)
-      | looksLikeSingleTime x -> Just ([], x, rest)
-      | otherwise -> prepend x (findSingleTime rest)
-  where
-    prepend a mb =
-      case mb of
-        Nothing -> Nothing
-        Just (before, t, after) -> Just (a:before, t, after)
+isMer :: String -> Bool
+isMer w = w == "am" || w == "pm"
 
-looksLikeRange :: String -> Bool
-looksLikeRange t =
+isRange :: String -> Bool
+isRange t =
   case break (== '-') t of
     (l, '-':r) -> allDigits l && allDigits r
     _          -> False
 
-splitRange :: String -> (String, String)
-splitRange t =
+splitOnDash :: String -> (String, String)
+splitOnDash t =
   case break (== '-') t of
     (l, '-':r) -> (l, r)
     _          -> (t, t)
 
-looksLikeRangeWithMeridiem :: String -> Bool
-looksLikeRangeWithMeridiem t =
-  case reverse t of
-    ('m':'a':restRev) -> looksLikeRange (reverse restRev)
-    ('m':'p':restRev) -> looksLikeRange (reverse restRev)
-    _                 -> False
+splitRangeWithMer :: String -> Maybe (String, String, String)
+splitRangeWithMer t =
+  if endsWith "am" t
+    then mk "am"
+    else if endsWith "pm" t
+      then mk "pm"
+      else Nothing
+  where
+    mk mer =
+      let rangePart = take (length t - 2) t
+      in if isRange rangePart
+           then let (a, b) = splitOnDash rangePart
+                in Just (a, b, mer)
+           else Nothing
 
-splitMeridiem :: String -> (String, String)
-splitMeridiem t =
-  let rt = reverse t
-  in case rt of
-      ('m':'a':restRev) -> (reverse restRev, "am")
-      ('m':'p':restRev) -> (reverse restRev, "pm")
-      _                 -> (t, "")
+isSingleTime :: String -> Bool
+isSingleTime t =
+  case stripMeridiem t of
+    Just numPart -> looksLikeClock numPart
+    Nothing      -> False
 
-looksLikeSingleTime :: String -> Bool
-looksLikeSingleTime t =
-  case reverse t of
-    ('m':'a':restRev) -> hasDigits (reverse restRev)
-    ('m':'p':restRev) -> hasDigits (reverse restRev)
-    _ -> False
+stripMeridiem :: String -> Maybe String
+stripMeridiem t
+  | endsWith "am" t = Just (take (length t - 2) t)
+  | endsWith "pm" t = Just (take (length t - 2) t)
+  | otherwise       = Nothing
 
-hasDigits :: String -> Bool
-hasDigits = any (`elem` "0123456789")
+looksLikeClock :: String -> Bool
+looksLikeClock s =
+  case break (== ':') s of
+    (h, ':' : m) -> allDigits h && allDigits m
+    (h, _)       -> allDigits h
+
+endsWith :: String -> String -> Bool
+endsWith suf s = reverse suf == take (length suf) (reverse s)
 
 allDigits :: String -> Bool
 allDigits [] = False
