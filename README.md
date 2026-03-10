@@ -1,1 +1,3 @@
-This project is a Haskell command-line program that parses natural language event descriptions into structured calendar events. The program extracts information such as title, date, time, and location, and is designed to later export events in .ics format for calendar applications.
+# Natural Language Task Calendar
+
+This project is a command-line Haskell program that converts simple natural language task descriptions into calendar events. The program parses user input (such as event titles, times, dates, and recurring patterns) and exports the events to a `.ics` file that can be imported into calendar applications like Google Calendar or Apple Calendar. It demonstrates functional programming concepts such as algebraic data types, pattern matching, and modular program design.
